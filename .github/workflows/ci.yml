@@ -22,6 +22,18 @@ jobs:
 
             - name: Install Dependencies
               run: npm ci
+
+    tests:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Run Lint
+              run: npm run lint
+
+            - name: Run integration Test
+              run: npm run test:integration
+
+            - name: Run Unit Test
+              run: npm run test:unit
               
  
  
