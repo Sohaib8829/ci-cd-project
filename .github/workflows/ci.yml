@@ -1,6 +1,9 @@
 name: Github Actions CI
 
 on:
+    pull_request:
+        branches:
+            [master]
     push:
         branches:
             [master]
@@ -12,10 +15,15 @@ jobs:
             - name: Clone the code
               uses: actions/checkout@v4
 
-            - name: Install Dependencies
-              run: npm install
+            - name: Install Nodejs
+              uses: actions/setup-node@v4
+              with:
+                node-version: '20'
 
-            - name: Run Tests
-              run: npm run test  
+            - name: Install Dependencies
+              run: npm ci
+              
+ 
+ 
 
 
