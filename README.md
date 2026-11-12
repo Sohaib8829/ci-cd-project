@@ -27,3 +27,4 @@ npm start          # http://localhost:3000
 - API: `GET /api/products`, `GET /api/products/:id`, `POST /api/contact`
 - Health: `GET /health `
 
+DEVOPS PARACTICE COMPLETED CICD
