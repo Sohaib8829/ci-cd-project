@@ -1,0 +1,21 @@
+name: Github Actions CI
+
+on:
+    push:
+        branches:
+            [master]
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Clone the code
+              uses: actions/checkout@v4
+
+            - name: Install Dependencies
+              runs: npm install
+
+            - name: Run Tests
+              runs: npm run test  
+
+

@@ -1,0 +1,18 @@
+<%- include('partials/header', { title }) %>
+<section class="hero">
+  <h1>Welcome to the Practice Shop</h1>
+  <p>A tiny website built so you can practise pipelines: lint, test, build, deploy.</p>
+  <a class="btn" href="/products">Browse products</a>
+</section>
+
+<h2>Featured</h2>
+<div class="grid">
+  <% featured.forEach(function (p) { %>
+    <article class="card">
+      <h3><%= p.name %></h3>
+      <p class="price"><%= p.price %></p>
+      <span class="badge <%= p.inStock ? 'ok' : 'out' %>"><%= p.inStock ? 'In stock' : 'Out of stock' %></span>
+    </article>
+  <% }) %>
+</div>
+<%- include('partials/footer') %>
