@@ -47,6 +47,18 @@ jobs:
               with:
                 name: coverage-report
                 path: coverage/
+            
+            - name: Start the app in background
+              run: npm start &
+            
+            - name: Wait for app to start
+              run: sleep 10
+              
+            - name: Check Health Endpoint
+              run: curl -f http://localhost:3000/health
+
+            - name: Stop the app
+              run: npx kill-port 3000          
 
               
  
