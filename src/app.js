@@ -17,8 +17,8 @@ function createApp() {
     res.json({ status: 'ok', version: process.env.APP_VERSION || 'dev' });
   });
 
-  app.use('/api', apiRouter)
-  app.use('/', pagesRoute);
+  app.use('/api', apiRouter);
+  app.use('/', pagesRouter);
 
   app.use((req, res) => {
     res.status(404).render('404', { title: 'Not found' });
