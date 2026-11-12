@@ -31,7 +31,17 @@ jobs:
               run: npm run test:integration
 
             - name: Run Unit Test
-              run: npm run test:unit            
+              run: npm run test:unit         
+              
+            - name: Run Coverage Test
+              run: npm run test:coverage
+
+            - name: Download Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                name: coverage-report
+                path: coverage/
+
               
  
  
