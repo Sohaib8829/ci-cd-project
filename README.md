@@ -26,3 +26,5 @@ npm start          # http://localhost:3000
 - Pages: `/`, `/products`, `/contact`
 - API: `GET /api/products`, `GET /api/products/:id`, `POST /api/contact`
 - Health: `GET /health`
+
+DEVOPS PROJECT
