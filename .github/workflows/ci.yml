@@ -26,10 +26,10 @@ jobs:
             node-version: [18 , 20]
         steps:
             - name: Clone the code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
 
             - name: Install Nodejs ${{matrix.node-version}}
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                 node-version: ${{matrix.node-version}}
                 cache: 'npm'
@@ -40,18 +40,18 @@ jobs:
             - name: Run Lint
               run: npm run lint
 
-            - name: Run integration Test
-              run: npm run test:integration
-
             - name: Run Unit Test
-              run: npm run test:unit         
+              run: npm run test:unit
+
+            - name: Run Integration Test
+              run: npm run test:integration         
             
             - name: Run Coverage Test
               run: npm run test:coverage
 
             - name: Upload Artifact
               if: always()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                 name: coverage-report-${{matrix.node-version}}
                 path: coverage/
@@ -66,10 +66,10 @@ jobs:
             node-version: [18 , 20]
         steps:
             - name: Clone the code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
 
             - name: Install Nodejs ${{matrix.node-version}}
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                 node-version: ${{matrix.node-version}}
                 cache: 'npm'
@@ -82,8 +82,7 @@ jobs:
                 APP_VERSION: ${{github.sha}}
               run: |
                 npm start &
-                npx wait-on http://localhost:3000 --timeout 3000
-                RESPONSE=$(curl -s http://localhost:3000/health)
+                RESPONSE=$(curl -sf --retry 10 --retry-delay 1 --retry-connrefused http://localhost:3000/health)
                 echo "HEALTH RESPONSE: $RESPONSE"
                 
                 if echo $RESPONSE | grep -q "$APP_VERSION"; then 
