@@ -79,17 +79,17 @@ jobs:
             
             - name: Start the app in background
               env:
-                GITHUB_SHA: ${{github.sha}}
+                APP_VERSION: ${{github.sha}}
               run: |
                 npm start &
                 npx wait-on http://localhost:3000 --timeout 3000
                 RESPONSE=$(curl -s http://localhost:3000/health)
                 echo "HEALTH RESPONSE: $RESPONSE"
                 
-                if echo $RESPONSE | grep -q "$GITHUB_SHA"; then 
-                  echo "Success! Exact commit version ($GITHUB_SHA) verified."
+                if echo $RESPONSE | grep -q "$APP_VERSION"; then 
+                  echo "Success! Exact commit version ($APP_VERSION) verified."
                 else 
-                  echo "Error! Expected version $GITHUB_SHA not found in response."
+                  echo "Error! Expected version $APP_VERSION not found in response."
                   exit 1
 
                 fi
