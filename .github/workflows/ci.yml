@@ -20,18 +20,14 @@ jobs:
     tests:
         timeout-minutes: 10
         runs-on: ubuntu-latest
-        strategy:
-          fail-fast: false
-          matrix:
-            node-version: [18 , 20]
         steps:
             - name: Clone the code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
 
-            - name: Install Nodejs ${{matrix.node-version}}
-              uses: actions/setup-node@v4
+            - name: Install Nodejs
+              uses: actions/setup-node@v7
               with:
-                node-version: ${{matrix.node-version}}
+                node-version: '22'
                 cache: 'npm'
 
             - name: Install Dependencies
@@ -40,50 +36,39 @@ jobs:
             - name: Run Lint
               run: npm run lint
 
-            - name: Run integration Test
-              run: npm run test:integration
-
             - name: Run Unit Test
-              run: npm run test:unit         
+              run: npm run test:unit
+
+            - name: Run Integration Test
+              run: npm run test:integration         
             
             - name: Run Coverage Test
               run: npm run test:coverage
 
             - name: Upload Artifact
               if: always()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
-                name: coverage-report-${{matrix.node-version}}
+                name: coverage-report
                 path: coverage/
       
     app:  
         timeout-minutes: 10
         needs: tests
         runs-on: ubuntu-latest
-        strategy:
-          fail-fast: false
-          matrix:
-            node-version: [18 , 20]
         steps:
             - name: Clone the code
-              uses: actions/checkout@v4
-
-            - name: Install Nodejs ${{matrix.node-version}}
-              uses: actions/setup-node@v4
-              with:
-                node-version: ${{matrix.node-version}}
-                cache: 'npm'
-
-            - name: Install Dependencies
-              run: npm ci
+              uses: actions/checkout@v7
             
             - name: Start the app in background
               env:
                 APP_VERSION: ${{github.sha}}
               run: |
-                npm start &
-                npx wait-on http://localhost:3000 --timeout 3000
-                RESPONSE=$(curl -s http://localhost:3000/health)
+                docker build --build-arg APP_VERSION=$APP_VERSION -t devops-container:$APP_VERSION .
+                docker run -d --name devops-container -p3000:3000 devops-container:$APP_VERSION  
+                sleep 5
+                docker logs devops-container      
+                RESPONSE=$(curl -sf --retry 10 --retry-delay 1 --retry-connrefused http://localhost:3000/health)
                 echo "HEALTH RESPONSE: $RESPONSE"
                 
                 if echo $RESPONSE | grep -q "$APP_VERSION"; then 
