@@ -67,7 +67,9 @@ jobs:
           APP_VERSION: ${{ github.sha }}
         run: |
           docker build --build-arg APP_VERSION=$APP_VERSION -t devops-container:$APP_VERSION .
-          docker run -d --name devops-container -p 3000:3000 devops-container:$APP_VERSION        
+          docker run -d --name devops-container -p 3000:3000 devops-container:$APP_VERSION  
+          sleep 5
+          docker logs devops-container      
           RESPONSE=$(curl -sf --retry 10 --retry-delay 1 --retry-connrefused http://localhost:3000/health)
           echo "HEALTH RESPONSE: $RESPONSE"
           
