@@ -2,100 +2,104 @@ name: Github Actions CI
 
 on:
   pull_request:
-      branches:
-          [master]
+    branches:
+      [master]
   push:
-      branches:
-          [master]
+    branches:
+      [master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-
 permissions:
   contents: read
+  packages: write # <--- 1. NAYI PERMISSION: GHCR par push karne ke liye
 
 jobs:
-    tests:
-        timeout-minutes: 10
-        runs-on: ubuntu-latest
-        strategy:
-          fail-fast: false
-          matrix:
-            node-version: [18 , 20]
-        steps:
-            - name: Clone the code
-              uses: actions/checkout@v4
+  tests:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v4
 
-            - name: Install Nodejs ${{matrix.node-version}}
-              uses: actions/setup-node@v4
-              with:
-                node-version: ${{matrix.node-version}}
-                cache: 'npm'
+      - name: Install Nodejs
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
 
-            - name: Install Dependencies
-              run: npm ci
-            
-            - name: Run Lint
-              run: npm run lint
-
-            - name: Run integration Test
-              run: npm run test:integration
-
-            - name: Run Unit Test
-              run: npm run test:unit         
-            
-            - name: Run Coverage Test
-              run: npm run test:coverage
-
-            - name: Upload Artifact
-              if: always()
-              uses: actions/upload-artifact@v4
-              with:
-                name: coverage-report-${{matrix.node-version}}
-                path: coverage/
+      - name: Install Dependencies
+        run: npm ci
       
-    app:  
-        timeout-minutes: 10
-        needs: tests
-        runs-on: ubuntu-latest
-        strategy:
-          fail-fast: false
-          matrix:
-            node-version: [18 , 20]
-        steps:
-            - name: Clone the code
-              uses: actions/checkout@v4
+      - name: Run Lint
+        run: npm run lint
 
-            - name: Install Nodejs ${{matrix.node-version}}
-              uses: actions/setup-node@v4
-              with:
-                node-version: ${{matrix.node-version}}
-                cache: 'npm'
+      - name: Run Unit Test
+        run: npm run test:unit
 
-            - name: Install Dependencies
-              run: npm ci
-            
-            - name: Start the app in background
-              env:
-                APP_VERSION: ${{github.sha}}
-              run: |
-                npm start &
-                npx wait-on http://localhost:3000 --timeout 3000
-                RESPONSE=$(curl -s http://localhost:3000/health)
-                echo "HEALTH RESPONSE: $RESPONSE"
-                
-                if echo $RESPONSE | grep -q "$APP_VERSION"; then 
-                  echo "Success! Exact commit version ($APP_VERSION) verified."
-                else 
-                  echo "Error! Expected version $APP_VERSION not found in response."
-                  exit 1
+      - name: Run Integration Test
+        run: npm run test:integration         
+      
+      - name: Run Coverage Test
+        run: npm run test:coverage
 
-                fi
+      - name: Upload Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+    
+  app:  
+    timeout-minutes: 10
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v4
+      
+      - name: Build and Verify App Health
+        env:
+          APP_VERSION: ${{ github.sha }}
+        run: |
+          docker build --build-arg APP_VERSION=$APP_VERSION -t devops-container:$APP_VERSION .
+          docker run -d --name devops-container -p 3000:3000 devops-container:$APP_VERSION  
+          sleep 5
+          docker logs devops-container      
+          RESPONSE=$(curl -sf --retry 10 --retry-delay 1 --retry-connrefused http://localhost:3000/health)
+          echo "HEALTH RESPONSE: $RESPONSE"
+          
+          if echo $RESPONSE | grep -q "$APP_VERSION"; then 
+            echo "Success! Exact commit version ($APP_VERSION) verified."
+          else 
+            echo "Error! Expected version $APP_VERSION not found in response."
+            exit 1
+          fi
 
-              
- 
- 
+      # <--- 2. NAYE STEPS: Sirf tab chalenge jab master par push hoga (PR par nahi) --->
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Tag and Push Docker Image to GHCR
+        if: github.event_name == 'push'
+        env: 
+          APP_VERSION: ${{ github.sha }}
+        run: |
+          # GitHub username ko lowercase mein convert karne ke liye (GHCR requirement)
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_NAME="ghcr.io/$OWNER_LOWER/devops-container"
 
+          # Local verified image ko GHCR tags dena
+          docker tag devops-container:$APP_VERSION $IMAGE_NAME:$APP_VERSION
+          docker tag devops-container:$APP_VERSION $IMAGE_NAME:latest
+
+          # Dono tags ko GHCR par push karna
+          docker push $IMAGE_NAME:$APP_VERSION
+          docker push $IMAGE_NAME:latest
