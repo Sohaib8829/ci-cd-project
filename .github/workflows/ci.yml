@@ -12,20 +12,21 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Global level par sirf minimum read permission
 permissions:
   contents: read
-  packages: write # <--- 1. NAYI PERMISSION: GHCR par push karne ke liye
 
 jobs:
+  # JOB 1: Code Quality & Automated Tests
   tests:
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - name: Clone the code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Nodejs
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'npm'
@@ -45,20 +46,21 @@ jobs:
       - name: Run Coverage Test
         run: npm run test:coverage
 
-      - name: Upload Artifact
+      - name: Upload Coverage Artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage/
     
-  app:  
+  # JOB 2: Build Image & Verify Health (No write permissions needed here)
+  build-and-verify:
     timeout-minutes: 10
     needs: tests
     runs-on: ubuntu-latest
     steps:
       - name: Clone the code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       
       - name: Build and Verify App Health
         env:
@@ -78,28 +80,79 @@ jobs:
             exit 1
           fi
 
-      # <--- 2. NAYE STEPS: Sirf tab chalenge jab master par push hoga (PR par nahi) --->
-      - name: Log in to GitHub Container Registry
+      # Sirf master par push hone ki surat mein image ko export karein
+      - name: Export Verified Docker Image
         if: github.event_name == 'push'
-        uses: docker/login-action@v3
+        env:
+          APP_VERSION: ${{ github.sha }}
+        run: docker save devops-container:$APP_VERSION -o devops-container.tar
+
+      - name: Upload Docker Image Artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v7
+        with:
+          name: docker-image
+          path: devops-container.tar
+          retention-days: 1
+
+  # JOB 3: Secure Publish Job (Only runs on push to master)
+  publish:
+    timeout-minutes: 5
+    needs: build-and-verify
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # Sirf is job ko registry mein likhne ki ijazat hai
+    permissions:
+      packages: write
+    steps:
+      - name: Download Verified Docker Image
+        uses: actions/download-artifact@v8
+        with:
+          name: docker-image
+
+      - name: Load Docker Image
+        run: docker load -i devops-container.tar
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Tag and Push Docker Image to GHCR
-        if: github.event_name == 'push'
         env: 
           APP_VERSION: ${{ github.sha }}
         run: |
-          # GitHub username ko lowercase mein convert karne ke liye (GHCR requirement)
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           IMAGE_NAME="ghcr.io/$OWNER_LOWER/devops-container"
 
-          # Local verified image ko GHCR tags dena
           docker tag devops-container:$APP_VERSION $IMAGE_NAME:$APP_VERSION
           docker tag devops-container:$APP_VERSION $IMAGE_NAME:latest
 
-          # Dono tags ko GHCR par push karna
           docker push $IMAGE_NAME:$APP_VERSION
           docker push $IMAGE_NAME:latest
+
+  # JOB 4: Gatekeeper Job for Branch Protection
+  ci-gatekeeper:
+    timeout-minutes: 2
+    runs-on: ubuntu-latest
+    # Yahan apni tamam jobs ke naam likhein (kal ko nayi job add ho toh bas yahan naam dal dein)
+    needs: [tests, build-and-verify, publish]
+    if: always()
+    steps:
+      - name: Check All Jobs Status
+        run: |
+          echo "Tests Result: ${{ needs.tests.result }}"
+          echo "Build Result: ${{ needs.build-and-verify.result }}"
+          echo "Publish Result: ${{ needs.publish.result }}"
+
+          # Publish job PR par 'skipped' hogi, jo ke valid hai. Koi bhi job 'failure' ya 'cancelled' nahi honi chahiye.
+          if [[ "${{ needs.tests.result }}" != "success" ]] || \
+             [[ "${{ needs.build-and-verify.result }}" != "success" ]] || \
+             [[ "${{ needs.publish.result }}" != "success" && "${{ needs.publish.result }}" != "skipped" ]]; then
+            echo "One or more required jobs failed or were cancelled!"
+            exit 1
+          fi
+          
+          echo "All pipeline checks passed successfully!"
