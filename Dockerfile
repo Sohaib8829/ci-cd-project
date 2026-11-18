@@ -10,8 +10,10 @@ ARG APP_VERSION
 
 ENV APP_VERSION=$APP_VERSION
 
-COPY . .
+COPY --chown=node:node . .
 
 EXPOSE 3000
+
+USER node
 
 CMD ["npm","start"]
